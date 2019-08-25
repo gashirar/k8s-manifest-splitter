@@ -6,6 +6,7 @@ import (
     "bufio"
     "os"
     "strings"
+    "errors"
 )
 
 func main() {
@@ -29,30 +30,41 @@ func main() {
             line = line + s + "\n"
         }
     }
+    yamls = append(yamls, line)
 
     if err = scanner.Err(); err !=nil {
        fmt.Println(err)
     }
 
     for _, y := range yamls {
-        kind := getResourceKind(y)
-        name := getResourceName(y)
-        filename := name + "_" + kind + ".yaml"
-        writeYamlFile(y, filename)
+        if kind, err := getResourceKind(y); err == nil {
+            if name, err := getResourceName(y); err == nil {
+                filename := name + "_" + kind + ".yaml"
+                writeYamlFile(y, filename)        
+            }    
+        }
     }
     return
 }
 
-func getResourceKind(yamlString string) string{
+func getResourceKind(yamlString string) (string, error) {
     k8sManifest := make(map[string]interface{})
     yaml.Unmarshal([]byte(yamlString), &k8sManifest)
-    return k8sManifest["kind"].(string)
+    if v, ok := k8sManifest["kind"]; ok {
+        return v.(string), nil
+    }
+    return "", errors.New("Error: Invalid YAML String.")
 }
 
-func getResourceName(yamlString string) string {
+func getResourceName(yamlString string) (string, error) {
     k8sManifest := make(map[string]interface{})
     yaml.Unmarshal([]byte(yamlString), &k8sManifest)
-    return  k8sManifest["metadata"].(map[interface{}]interface{})["name"].(string)
+    if _, ok := k8sManifest["metadata"]; ok {
+        if v, ok := k8sManifest["metadata"].(map[interface{}]interface{})["name"]; ok {
+            return v.(string), nil
+        }
+    }
+    return "", errors.New("Error: Invalid YAML String.")
 }
 
 func writeYamlFile(yamlString string, filename string) error {
